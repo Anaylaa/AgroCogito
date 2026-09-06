@@ -1,0 +1,20 @@
+# Python standard ignores
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+
+# Databases
+*.db
+*.sqlite3
+
+# Streamlit config and cache
+.streamlit/
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db

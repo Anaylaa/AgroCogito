@@ -1,0 +1,201 @@
+{
+  "name": "AgroCogito - Ingestão Diária de Dados e Execução de Análise",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": "0 12 * * 1-5"
+      },
+      "id": "1d8102d5-a337-4d94-81f1-e8d1ee7fa702",
+      "name": "Cron Trigger (12h UT)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.agrocogito.internal/v1/producers/PROD-001/context",
+        "options": {}
+      },
+      "id": "1894b9ff-3518-4b71-b01f-0e866e4a2d33",
+      "name": "Obter Dados Produtor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        300,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.cepea.internal/v1/corn/latest",
+        "options": {}
+      },
+      "id": "8b9ff189-3518-4b71-b01f-0e866e4a2d34",
+      "name": "Obter Preço Spot CEPEA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.b3.internal/v1/corn/futures",
+        "options": {}
+      },
+      "id": "c101ff89-3518-4b71-b01f-0e866e4a2d35",
+      "name": "Obter Cotações B3 CCM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        300,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "id": "a189f923-2891-4d1a-be10-d9817e082fcd",
+      "name": "Mesclar Entradas",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [
+        550,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validação de Cotações da B3 com atraso de no máximo 60 minutos\nconst referenceTime = new Date();\nconst b3Contracts = items[0].json.b3.contracts;\n\nconst validContracts = b3Contracts.filter(c => {\n  const quoteTime = new Date(c.quoteTimestamp);\n  const diffMinutes = (referenceTime - quoteTime) / (1000 * 60);\n  return diffMinutes >= 0 && diffMinutes <= 60;\n});\n\nitems[0].json.b3.contracts = validContracts;\nitems[0].json.b3.validatedAt = referenceTime.toISOString();\nreturn items;"
+      },
+      "id": "d1a89b2c-2931-419b-a010-00d810fdbe92",
+      "name": "Validar Idade Cotações (<60 min)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        750,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.agrocogito.internal/v1/analyses",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "producerId",
+              "value": "={{ $json.producerId }}"
+            },
+            {
+              "name": "payload",
+              "value": "={{ $json }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e2a3c94d-192a-438c-89cf-fdb9e10293da",
+      "name": "POST Executar Análise",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        950,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Cron Trigger (12h UT)": {
+      "main": [
+        [
+          {
+            "node": "Obter Dados Produtor",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Obter Preço Spot CEPEA",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Obter Cotações B3 CCM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obter Dados Produtor": {
+      "main": [
+        [
+          {
+            "node": "Mesclar Entradas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obter Preço Spot CEPEA": {
+      "main": [
+        [
+          {
+            "node": "Mesclar Entradas",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Obter Cotações B3 CCM": {
+      "main": [
+        [
+          {
+            "node": "Mesclar Entradas",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Mesclar Entradas": {
+      "main": [
+        [
+          {
+            "node": "Validar Idade Cotações (<60 min)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Idade Cotações (<60 min)": {
+      "main": [
+        [
+          {
+            "node": "POST Executar Análise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "1b08fa0c-5db9-42b4-82a1-fa0812cf6fca",
+  "id": "1",
+  "meta": {
+    "instanceId": "cb08fa0c-5db9-42b4-82a1-fa0812cf6fca"
+  }
+}
